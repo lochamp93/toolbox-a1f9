@@ -1,235 +1,335 @@
-////////////////
-// PARAMS URL //
-////////////////
-const P = new URLSearchParams(location.search);
-const sbHost  = str("address","127.0.0.1");
-const sbPort  = str("port","8080");
-const sbPass  = str("password","");
+/////////////////////////////
+// URLS & PARAMS (GitHub Pages)
+/////////////////////////////
 
-// Général
-const chatCommand     = str("chatCommand","!vibemeter");
-const permissionLevel = int("permissionLevel",30);
-const minRating       = int("minRating",0);
-const maxRating       = int("maxRating",10);
-const defaultDuration = int("defaultDuration",60);
+// JSON de settings dans le même dossier
+const settingsJson = "./settings.json";
 
-// Apparence
-const decimalPlaces = int("decimalPlaces",1);
-const fontSize      = int("fontSize",150);
+// Calcule l’URL absolue de l’overlay à partir de /settings/
+const baseFromSettings = (() => {
+  const { origin, pathname } = window.location;
+  const rootPath = pathname.replace(/\/settings\/.*$/, "/");
+  return origin + rootPath; // ex: https://lochamp93.github.io/toolbox-a1f9/
+})();
 
-function int(k,d){const v=P.get(k);if(v===null)return d;const n=Number(v);return Number.isFinite(n)?Math.trunc(n):d;}
-function str(k,d){const v=P.get(k);return (v==null||v==="")?d:v;}
+// Permet un override par ?widgetURL=...
+const urlParams = new URLSearchParams(location.search);
+const widgetURL = urlParams.get("widgetURL") || baseFromSettings;
+
+// helper bool
+function GetBooleanParam(name, def=false){
+  const v = urlParams.get(name);
+  if (v == null) return def;
+  return ["1","true","yes","on"].includes(String(v).toLowerCase());
+}
+const showUnmuteIndicator = GetBooleanParam("showUnmuteIndicator", false);
+
+/////////////////////////
+// ÉLÉMENTS DE LA PAGE
+/////////////////////////
+
+const widgetUrlInputWrapper = document.getElementById('widgetUrlInputWrapper');
+const widgetUrlInput = document.getElementById('widgetUrlInput');
+const urlLabel = document.getElementById('urlLabel');
+const settingsPanel = document.getElementById('settingsPanel');
+const widgetPreview = document.getElementById('widgetPreview');
+const loadURLBox = document.getElementById('loadUrlBox');
+const loadDefaultsBox = document.getElementById('loadDefaultsWrapper');
+const loadSettingsBox = document.getElementById('loadSettingsWrapper');
+const unmuteLabel = document.getElementById('unmute-label');
+
+let settingsData = '';
+let settingsMap = new Map();
+
+// clé de stockage (nom de l’overlay)
+const parts = widgetURL.replace(/\/+$/, '').split('/');
+const keyPrefix = parts[parts.length - 1] || 'overlay';
+
+if (showUnmuteIndicator) unmuteLabel.style.display = 'inline';
+loadUrlBox.placeholder = `${widgetURL}?...`;
+
+/////////////////////////////
+// CHARGER settings.json
+/////////////////////////////
+function LoadJSON(url) {
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      settingsData = data;
+      settingsPanel.innerHTML = '';
+
+      const grouped = {};
+      data.settings.forEach(s => (grouped[s.group] ||= []).push(s));
+
+      for (const groupName in grouped) {
+        const groupDiv = document.createElement('div');
+        groupDiv.classList.add('setting-group');
+
+        const groupHeader = document.createElement('h2');
+        groupHeader.textContent = groupName;
+        groupDiv.appendChild(groupHeader);
+
+        grouped[groupName].forEach(setting => {
+          const item = document.createElement('div');
+          item.classList.add('setting-item');
+          item.id = `item-${setting.id}`;
+
+          const labelDescriptionDiv = document.createElement('div');
+          if (setting.label) {
+            const label = document.createElement('label');
+            label.textContent = setting.label;
+            labelDescriptionDiv.appendChild(label);
+          }
+          if (setting.description) {
+            const description = document.createElement('p');
+            description.innerHTML = setting.description;
+            labelDescriptionDiv.appendChild(description);
+          }
+
+          const content = document.createElement('div');
+          content.classList.add('setting-item-content');
+
+          let input;
+          switch (setting.type) {
+            case 'text':
+            case 'password': {
+              input = document.createElement('input');
+              input.type = setting.type;
+              input.id = setting.id;
+              input.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
+              input.autocomplete = 'new-password';
+              break;
+            }
+            case 'checkbox': {
+              const labelDiv = document.createElement('label');
+              labelDiv.classList.add('switch');
+              const cb = document.createElement('input');
+              cb.type = 'checkbox';
+              cb.id = setting.id;
+              cb.checked = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
+              labelDiv.appendChild(cb);
+
+              const slider = document.createElement('span');
+              slider.classList.add('slider','round');
+              labelDiv.appendChild(slider);
+
+              labelDiv.addEventListener('click', () => {
+                cb.checked = !cb.checked;
+                UpdateSettingItemVisibility();
+              });
+              input = labelDiv;
+              break;
+            }
+            case 'select': {
+              input = document.createElement('select');
+              input.id = setting.id;
+              setting.options.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt.value;
+                o.textContent = opt.label;
+                if (opt.value === setting.defaultValue) o.selected = true;
+                input.appendChild(o);
+              });
+              input.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
+              break;
+            }
+            case 'color': {
+              input = document.createElement('input');
+              input.type = 'color';
+              input.id = setting.id;
+              input.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
+              break;
+            }
+            case 'number': {
+              input = document.createElement('input');
+              input.type = 'number';
+              input.id = setting.id;
+              input.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
+              input.min = setting.min;
+              input.max = setting.max;
+              input.step = setting.step;
+              break;
+            }
+            case 'button': {
+              input = document.createElement('button');
+              input.id = setting.id;
+              input.textContent = setting.label;
+              input.addEventListener('click', () => {
+                widgetPreview.contentWindow?.[setting.callFunction]?.();
+
+                const bg = "#2e2e2e", fg = "white";
+                input.style.transitionDuration='0s';
+                input.style.backgroundColor="#2196f3";
+                input.style.color="#fff";
+                setTimeout(()=>{input.style.transitionDuration='.2s';input.style.backgroundColor=bg;input.style.color=fg;},100);
+              });
+              break;
+            }
+            default: {
+              input = document.createElement('input');
+              input.type = 'text';
+              input.id = setting.id;
+              input.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
+            }
+          }
+
+          if (!settingsMap.has(setting.id)) settingsMap.set(setting.id, setting.defaultValue);
+
+          input.addEventListener('input', () => {
+            const el = document.getElementById(setting.id);
+            if (setting.type === 'checkbox') settingsMap.set(setting.id, el.checked);
+            else settingsMap.set(setting.id, el.value);
+            SaveSettingsToStorage();
+            RefreshWidgetPreview();
+          });
+
+          content.appendChild(input);
+          if (setting.type === 'button') {
+            item.style.display='block';
+            item.appendChild(content);
+          } else {
+            item.appendChild(labelDescriptionDiv);
+            item.appendChild(content);
+          }
+          groupDiv.appendChild(item);
+        });
+
+        settingsPanel.appendChild(groupDiv);
+      }
+
+      function UpdateSettingItemVisibility() {
+        data.settings.forEach(setting => {
+          if (setting.showIf) {
+            const parentInput = document.getElementById(setting.showIf);
+            const show = !!parentInput?.checked;
+            document.getElementById(`item-${setting.id}`).style.display = show ? 'flex' : 'none';
+          }
+        });
+      }
+
+      UpdateSettingItemVisibility();
+      RefreshWidgetPreview();
+      SaveSettingsToStorage();
+    })
+    .catch(err => console.error('Erreur settings.json:', err));
+}
 
 ///////////////////////
-// ÉLÉMENTS & ÉTAT  //
+// STOCKAGE LOCAL
 ///////////////////////
-const ratingsMap = new Map();
-let isAcceptingSubmissions = false;
-let isInFinalAnimation = false;
+function SaveSettingsToStorage(){
+  localStorage.setItem(`${keyPrefix}-settings`, JSON.stringify(Array.from(settingsMap.entries())));
+}
+function LoadSettingsFromStorage(){
+  const s = localStorage.getItem(`${keyPrefix}-settings`);
+  if (s){ settingsMap = new Map(JSON.parse(s)); }
+}
+function LoadDefaultSettings(){
+  localStorage.removeItem(`${keyPrefix}-settings`);
+  settingsMap = new Map();
+  LoadJSON(settingsJson);
+  loadDefaultsBox.style.visibility='hidden'; loadDefaultsBox.style.opacity=0;
+}
 
-const label = document.getElementById("ratingLabel");
-const box = document.getElementById("ratingBox");
-const ratingBoxBackground = document.getElementById("ratingBoxBackground");
-const loadingBar = document.getElementById("loadingBar");
-const ratingBoxWrapper = document.getElementById("ratingBoxWrapper");
-
-label.style.fontSize = `${fontSize}px`;
-
-/////////////////////////////////
-// STREAMER.BOT – CONNEXION   //
-/////////////////////////////////
-let client;
-
-function connectStreamerBot(){
-  if (!window.StreamerbotClient){
-    console.error("[SB] StreamerbotClient non chargé.");
-    SetConnectionStatus(false, "lib manquante");
-    return;
-  }
-
-  // Choix du protocole : wss en HTTPS *si* tu as un proxy TLS ; sinon ws.
-  // OBS accepte ws (recommandé).
-  const useSecure = false; // laisse false à moins d’avoir un reverse proxy TLS vers SB
-  const proto = useSecure ? "wss" : "ws";
-  const endpoint = `${proto}://${sbHost}:${sbPort}/`;
-
-  console.log("[SB] endpoint:", endpoint);
-
-  client = new window.StreamerbotClient({
-    endpoint,
-    password: sbPass || undefined,
-    onConnect: () => { console.log("[SB] CONNECTED"); SetConnectionStatus(true); },
-    onDisconnect: () => { console.warn("[SB] DISCONNECTED"); SetConnectionStatus(false); }
+///////////////////////
+// APERÇU
+///////////////////////
+function RefreshWidgetPreview(){
+  const settings = {};
+  settingsData.settings.forEach(s=>{
+    if (s.type === 'button') return;
+    const el = document.getElementById(s.id);
+    if (!el) return;
+    settings[s.id] = (s.type === 'checkbox') ? el.checked : el.value;
   });
 
-  // Certaines versions n’autoconnectent pas :
-  if (typeof client.connect === "function") client.connect();
+  const qs = Object.entries(settings)
+    .map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
 
-  // Events
-  client.on?.('Twitch.ChatMessage', (res)=>{ try{TwitchChatMessage(res.data);}catch(e){console.error(e);} });
-  client.on?.('YouTube.Message',     (res)=>{ try{YouTubeMessage(res.data);}catch(e){console.error(e);} });
+  widgetUrlInput.value = widgetURL + "?" + qs;
+  widgetPreview.src = widgetUrlInput.value;
 }
 
-/////////////////////////
-// HANDLERS DE MESSAGES
-/////////////////////////
-function TwitchChatMessage(data){
-  CheckInput('twitch', data.user.id, data.message.message, data);
+///////////////////////
+// POPUPS & BOUTONS
+///////////////////////
+function CopyURLToClipboard(){
+  navigator.clipboard.writeText(widgetUrlInput.value);
+  const m = document.createElement('span');
+  m.textContent = 'Copié dans le presse-papiers !';
+  Object.assign(m.style, {
+    position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+    background:'#00dd63', color:'#fff', padding:'5px 10px', borderRadius:'5px',
+    zIndex:'2', opacity:'0', transition:'opacity .2s'
+  });
+  widgetUrlInputWrapper.appendChild(m); void m.offsetWidth; m.style.opacity='1';
+  setTimeout(()=>{m.style.opacity='0'; setTimeout(()=>widgetUrlInputWrapper.removeChild(m),500);},1200);
 }
-function YouTubeMessage(data){
-  CheckInput('youtube', data.user.id, data.message, data);
+function CloseDefaultsPopup(){ loadDefaultsBox.style.visibility='hidden'; loadDefaultsBox.style.opacity=0; }
+function CloseSettings(){ loadSettingsBox.style.visibility='hidden'; loadSettingsBox.style.opacity=0; }
+function OpenLoadDefaultsPopup(){ loadDefaultsBox.style.visibility='visible'; loadDefaultsBox.style.opacity=1; }
+function OpenLoadSettingsPopup(){ loadSettingsBox.style.visibility='visible'; loadSettingsBox.style.opacity=1; }
+
+function LoadSettings(){
+  const url = new URL(loadURLBox.value);
+  url.searchParams.forEach((value, key)=>{
+    const el = document.getElementById(key);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = value.toLowerCase() === 'true';
+    else el.value = value;
+    el.dispatchEvent(new Event('input'));
+  });
+  loadURLBox.value='';
+  loadSettingsBox.style.visibility='hidden'; loadSettingsBox.style.opacity=0;
 }
 
-function CheckInput(platform, userID, message, data){
-  // Commande
-  if (message.startsWith(chatCommand)) {
-    if (!IsUserAllowed(permissionLevel, data, platform)) return;
-    const parts = message.trim().split(/\s+/);
-    const p1 = (parts[1]||'').toLowerCase();
-    if (p1 === 'on') StartVibeMeter();
-    else if (p1 === 'off') EndVibeMeter();
-    else if (Number.isInteger(Number(p1))) StartVibeMeter(parseInt(p1,10));
+//////////////////
+// STREAMER.BOT //
+//////////////////
+
+// Rendez cette partie tolérante : si la lib n’est pas chargée, on continue sans autocomplete.
+let client = null;
+
+if (window.StreamerbotClient) {
+  let sbServerAddress = '127.0.0.1';
+  let sbServerPort = '8080';
+
+  try {
+    client = new StreamerbotClient({
+      host: sbServerAddress,
+      port: sbServerPort,
+      onConnect: () => { console.log(`Streamer.bot connecté à ${sbServerAddress}:${sbServerPort}`); GetSBActions(); },
+      onDisconnect: () => { console.warn(`Streamer.bot déconnecté de ${sbServerAddress}:${sbServerPort}`); }
+    });
+    if (typeof client.connect === "function") client.connect();
+  } catch (e) {
+    console.error("Init Streamer.bot (settings) échoué:", e);
+    client = null;
   }
-
-  // Note
-  if (!/^-?\d+(\.\d+)?$/.test(message)) return;
-  const rating = Number(message);
-  if (rating < minRating || rating > maxRating) return;
-
-  ratingsMap.set(`${platform}-${userID}`, rating);
-  CalculateAverage();
+} else {
+  console.warn("StreamerbotClient non chargé dans settings — on continue sans liste d’actions.");
 }
 
-/////////////////////////
-// LOGIQUE DU METER    //
-/////////////////////////
-function StartVibeMeter(duration){
-  if (isAcceptingSubmissions || isInFinalAnimation) return;
-
-  isAcceptingSubmissions = true;
-  label.textContent = Number.isInteger(minRating)?String(minRating):minRating.toFixed(decimalPlaces);
-  box.style.backgroundColor = `rgba(255,0,0,1)`;
-
-  client?.sendMessage?.('twitch', `/me VIBE METER ! Entrez un nombre entre ${minRating} et ${maxRating}`, { bot:true });
-  client?.sendMessage?.('youtube', `VIBE METER ! Entrez un nombre entre ${minRating} et ${maxRating}`, { bot:true });
-
-  ratingsMap.clear();
-  ShowWidget();
-
-  if (duration == null) duration = defaultDuration;
-  loadingBar.style.transitionDuration = `${duration}s`;
-  loadingBar.style.height = 0;
-
-  if (duration > 0) setTimeout(EndVibeMeter, duration * 1000);
-}
-
-function EndVibeMeter(){
-  if (!isAcceptingSubmissions){
-    client?.sendMessage?.('twitch', `/me Tapez "${chatCommand} on" pour démarrer le Vibe Meter`, { bot:true });
-    client?.sendMessage?.('youtube', `Tapez "${chatCommand} on" pour démarrer le Vibe Meter`, { bot:true });
-    return;
-  }
-
-  isInFinalAnimation = true;
-  isAcceptingSubmissions = false;
-
-  ratingBoxBackground.style.animation = 'pulse 1s linear 1s forwards';
-
-  const finalRating = CalculateAverage();
-
-  setTimeout(()=>{
-    client?.sendMessage?.('twitch', `/me VERDICT VIBE METER : ${finalRating}/${maxRating}`, { bot:true });
-    client?.sendMessage?.('youtube', `VERDICT VIBE METER : ${finalRating}/${maxRating}`, { bot:true });
-
-    ratingBoxBackground.style.animation = '';
-
-    setTimeout(()=>{
-      HideWidget();
-      setTimeout(()=>{
-        loadingBar.style.transitionDuration = `0s`;
-        loadingBar.style.height = `100%`;
-        isInFinalAnimation = false;
-      }, 1000);
-    }, 2000);
-  }, 1000);
-}
-
-/////////////////////////
-// UTILITAIRES         //
-/////////////////////////
-function CalculateAverage(){
-  let sum=0,count=0;
-  for (const [,v] of ratingsMap){ sum+=v; count++; }
-  const average = count>0 ? sum/count : 0;
-  UpdateRatingBox(average);
-  return average;
-}
-
-function IsUserAllowed(target, data, platform){ return GetPermissionLevel(data, platform) >= target; }
-function GetPermissionLevel(data, platform){
-  switch (platform){
-    case 'twitch':
-      if (data.message.role >= 4) return 40;
-      if (data.message.role >= 3) return 30;
-      if (data.message.role >= 2) return 20;
-      if (data.message.role >= 2 || data.message.subscriber) return 15;
-      return 10;
-    case 'youtube':
-      if (data.user.isOwner) return 40;
-      if (data.user.isModerator) return 30;
-      if (data.user.isSponsor) return 15;
-      return 10;
-    default: return 10;
-  }
-}
-
-function UpdateRatingBox(newValue, duration=200){
-  const start = parseFloat((label.textContent||'').replace(',','.')) || minRating;
-  const t0 = performance.now();
-
-  function step(t){
-    const k = Math.min((t - t0)/duration, 1);
-    const v = start + (newValue - start)*k;
-
-    label.textContent = Number.isInteger(v)?String(v):v.toFixed(decimalPlaces);
-
-    const clamped = Math.min(Math.max(v, minRating), maxRating);
-    const range = maxRating - minRating;
-    const p = range===0 ? 1 : (clamped - minRating)/range;
-
-    const red = Math.round(255*(1-p));
-    const green = Math.round(255*p);
-    const color = `rgba(${red},${green},0,1)`;
-    box.style.backgroundColor = color;
-    ratingBoxBackground.style.backgroundColor = color;
-
-    if (k<1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
-
-function ShowWidget(){ ratingBoxWrapper.style.animation = `showWidget 0.5s ease-in-out forwards`; }
-function HideWidget(){ ratingBoxWrapper.style.animation = `hideWidget 0.5s ease-in-out forwards`; }
-
-///////////////////////////////////
-// STATUT CONNEXION (étiquette) //
-///////////////////////////////////
-function SetConnectionStatus(connected, hint=""){
-  const el = document.getElementById("statusContainer");
-  if (connected){
-    el.style.background = "#2FB774";
-    el.innerText = "Connecté !";
-    el.style.opacity = 1;
-    setTimeout(()=>{ el.style.transition = "all 2s ease"; el.style.opacity = 0; }, 10);
-  } else {
-    el.style.background = "#D12025";
-    el.innerText = "Connexion…" + (hint ? ` (${hint})` : "");
-    el.style.transition = "";
-    el.style.opacity = 1;
+async function GetSBActions() {
+  if (!client) return;
+  try {
+    const response = await client.getActions();
+    const dl = document.createElement('datalist');
+    dl.id = 'streamer-bot-actions';
+    for (const action of response.actions) {
+      const opt = document.createElement('option');
+      opt.value = action.name;
+      dl.appendChild(opt);
+    }
+    document.body.appendChild(dl);
+  } catch (e) {
+    console.error("getActions() a échoué:", e);
   }
 }
 
 /////////////////////
-// BOOT            //
+// INIT
 /////////////////////
-connectStreamerBot();
+LoadSettingsFromStorage();
+LoadJSON(settingsJson);
