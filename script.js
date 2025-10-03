@@ -1,226 +1,412 @@
 ////////////////
-// PARAMS URL //
+// PARAMETERS //
 ////////////////
-const P = new URLSearchParams(location.search);
-const sbHost  = str("address","127.0.0.1");
-const sbPort  = str("port","8080");
-const sbPass  = str("password","");
 
-// Général
-const chatCommand     = str("chatCommand","!vibemeter");
-const permissionLevel = int("permissionLevel",30);
-const minRating       = int("minRating",0);
-const maxRating       = int("maxRating",10);
-const defaultDuration = int("defaultDuration",60);
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
 
-// Apparence
-const decimalPlaces = int("decimalPlaces",1);
-const fontSize      = int("fontSize",150);
+let sbDebugMode = true;
+const sbServerAddress = urlParams.get("address") || "127.0.0.1";
+const sbServerPort = urlParams.get("port") || "8080";
+const sbServerPassword = urlParams.get("password") || "cumming";
 
-function int(k,d){const v=P.get(k);if(v===null)return d;const n=Number(v);return Number.isFinite(n)?Math.trunc(n):d;}
-function str(k,d){const v=P.get(k);return (v==null||v==="")?d:v;}
+// General
+const chatCommand = urlParams.get("chatCommand") || "!vibemeter";
+const permissionLevel = GetIntParam("permissionLevel", 30);
+const minRating = GetIntParam("minRating", 0);
+const maxRating = GetIntParam("maxRating", 10);
+const defaultDuration = GetIntParam("defaultDuration", 60);
 
-///////////////////////
-// ÉLÉMENTS & ÉTAT  //
-///////////////////////
+// Appearance
+const decimalPlaces = GetIntParam("decimalPlaces", 1);
+const fontSize = GetIntParam("fontSize", 150);
+
+
+
+/////////////////
+// GLOBAL VARS //
+/////////////////
+
 const ratingsMap = new Map();
 let isAcceptingSubmissions = false;
 let isInFinalAnimation = false;
+// Sons désactivés
+// const tickSFX = new Audio('sfx/tick.mp3');
+// const whooshSFX = new Audio('sfx/trailer-whoosh.mp3');
+
+
+
+///////////////////
+// PAGE ELEMENTS //
+///////////////////
 
 const label = document.getElementById("ratingLabel");
 const box = document.getElementById("ratingBox");
 const ratingBoxBackground = document.getElementById("ratingBoxBackground");
+const videoEl = document.getElementById("ratingVideo");
 const loadingBar = document.getElementById("loadingBar");
 const ratingBoxWrapper = document.getElementById("ratingBoxWrapper");
 
+// Set appearance
 label.style.fontSize = `${fontSize}px`;
 
-/////////////////////////////////
-// STREAMER.BOT – CONNEXION   //
-/////////////////////////////////
-let client;
 
-function connectStreamerBot(){
-  if (!window.StreamerbotClient){
-    console.error("[SB] StreamerbotClient non chargé.");
-    SetConnectionStatus(false, "lib manquante");
-    return;
-  }
-
-  // OBS accepte ws:// (recommandé). wss:// seulement si reverse proxy TLS vers SB.
-  const useSecure = false;
-  const proto = useSecure ? "wss" : "ws";
-  const endpoint = `${proto}://${sbHost}:${sbPort}/`;
-
-  console.log("[SB] endpoint:", endpoint);
-
-  client = new window.StreamerbotClient({
-    endpoint,
-    password: sbPass || undefined,
-    onConnect: () => { console.log("[SB] CONNECTED"); SetConnectionStatus(true); },
-    onDisconnect: () => { console.warn("[SB] DISCONNECTED"); SetConnectionStatus(false); }
-  });
-
-  if (typeof client.connect === "function") client.connect();
-
-  client.on?.('Twitch.ChatMessage', (res)=>{ try{TwitchChatMessage(res.data);}catch(e){console.error(e);} });
-  client.on?.('YouTube.Message',     (res)=>{ try{YouTubeMessage(res.data);}catch(e){console.error(e);} });
-}
 
 /////////////////////////
-// HANDLERS DE MESSAGES
+// STREAMER.BOT CLIENT //
 /////////////////////////
-function TwitchChatMessage(data){
-  CheckInput('twitch', data.user.id, data.message.message, data);
-}
-function YouTubeMessage(data){
-  CheckInput('youtube', data.user.id, data.message, data);
-}
 
-function CheckInput(platform, userID, message, data){
-  if (message.startsWith(chatCommand)) {
-    if (!IsUserAllowed(permissionLevel, data, platform)) return;
-    const parts = message.trim().split(/\s+/);
-    const p1 = (parts[1]||'').toLowerCase();
-    if (p1 === 'on') StartVibeMeter();
-    else if (p1 === 'off') EndVibeMeter();
-    else if (Number.isInteger(Number(p1))) StartVibeMeter(parseInt(p1,10));
-  }
+const client = new StreamerbotClient({
+	host: sbServerAddress,
+	port: sbServerPort,
+	password: sbServerPassword,
 
-  if (!/^-?\d+(\.\d+)?$/.test(message)) return;
-  const rating = Number(message);
-  if (rating < minRating || rating > maxRating) return;
+	onConnect: (data) => {
+		console.log(`Streamer.bot connecté avec succès à ${sbServerAddress}:${sbServerPort}`)
+		console.debug(data);
+		SetConnectionStatus(true);
+	},
 
-  ratingsMap.set(`${platform}-${userID}`, rating);
-  CalculateAverage();
-}
+	onDisconnect: () => {
+		console.error(`Streamer.bot déconnecté de ${sbServerAddress}:${sbServerPort}`)
+		SetConnectionStatus(false);
+	}
+});
 
-/////////////////////////
-// LOGIQUE DU METER    //
-/////////////////////////
-function StartVibeMeter(duration){
-  if (isAcceptingSubmissions || isInFinalAnimation) return;
+client.on('Twitch.ChatMessage', (response) => {
+	console.debug(response.data);
+	try {
+		TwitchChatMessage(response.data);
+	}
+	catch (error) {
+		console.error(error);
+	}
+})
 
-  isAcceptingSubmissions = true;
-  label.textContent = Number.isInteger(minRating)?String(minRating):minRating.toFixed(decimalPlaces);
-  box.style.backgroundColor = `rgba(255,0,0,1)`;
+client.on('YouTube.Message', (response) => {
+	console.debug(response.data);
+	try {
+		YouTubeMessage(response.data);
+	}
+	catch (error) {
+		console.error(error);
+	}
+})
 
-  client?.sendMessage?.('twitch', `/me VIBE METER ! Entrez un nombre entre ${minRating} et ${maxRating}`, { bot:true });
-  client?.sendMessage?.('youtube', `VIBE METER ! Entrez un nombre entre ${minRating} et ${maxRating}`, { bot:true });
 
-  ratingsMap.clear();
-  ShowWidget();
-
-  if (duration == null) duration = defaultDuration;
-  loadingBar.style.transitionDuration = `${duration}s`;
-  loadingBar.style.height = 0;
-
-  if (duration > 0) setTimeout(EndVibeMeter, duration * 1000);
-}
-
-function EndVibeMeter(){
-  if (!isAcceptingSubmissions){
-    client?.sendMessage?.('twitch', `/me Tapez "${chatCommand} on" pour démarrer le Vibe Meter`, { bot:true });
-    client?.sendMessage?.('youtube', `Tapez "${chatCommand} on" pour démarrer le Vibe METER`, { bot:true });
-    return;
-  }
-
-  isInFinalAnimation = true;
-  isAcceptingSubmissions = false;
-
-  ratingBoxBackground.style.animation = 'pulse 1s linear 1s forwards';
-  const finalRating = CalculateAverage();
-
-  setTimeout(()=>{
-    client?.sendMessage?.('twitch', `/me VERDICT VIBE METER : ${finalRating}/${maxRating}`, { bot:true });
-    client?.sendMessage?.('youtube', `VERDICT VIBE METER : ${finalRating}/${maxRating}`, { bot:true });
-
-    ratingBoxBackground.style.animation = '';
-    setTimeout(()=>{
-      HideWidget();
-      setTimeout(()=>{
-        loadingBar.style.transitionDuration = `0s`;
-        loadingBar.style.height = `100%`;
-        isInFinalAnimation = false;
-      }, 1000);
-    }, 2000);
-  }, 1000);
-}
 
 /////////////////////////
-// UTILITAIRES         //
+// QUICK RATING WIDGET //
 /////////////////////////
-function CalculateAverage(){
-  let sum=0,count=0;
-  for (const [,v] of ratingsMap){ sum+=v; count++; }
-  const average = count>0 ? sum/count : 0;
-  UpdateRatingBox(average);
-  return average;
+
+function TwitchChatMessage(data) {
+	const platform = `twitch`;
+	const userID = data.user.id;
+	const message = data.message.message;
+
+	CheckInput(platform, userID, message, data);
 }
 
-function IsUserAllowed(target, data, platform){ return GetPermissionLevel(data, platform) >= target; }
-function GetPermissionLevel(data, platform){
-  switch (platform){
-    case 'twitch':
-      if (data.message.role >= 4) return 40;
-      if (data.message.role >= 3) return 30;
-      if (data.message.role >= 2) return 20;
-      if (data.message.role >= 2 || data.message.subscriber) return 15;
-      return 10;
-    case 'youtube':
-      if (data.user.isOwner) return 40;
-      if (data.user.isModerator) return 30;
-      if (data.user.isSponsor) return 15;
-      return 10;
-    default: return 10;
-  }
+function YouTubeMessage(data) {
+	const platform = `twitch`;
+	const userID = data.user.id;
+	const message = data.message;
+
+	CheckInput(platform, userID, message, data);
 }
 
-function UpdateRatingBox(newValue, duration=200){
-  const start = parseFloat((label.textContent||'').replace(',','.')) || minRating;
-  const t0 = performance.now();
+function CheckInput(platform, userID, message, data) {
+	// Check for the start command
+	if (message.startsWith(chatCommand)) {
+		if (!IsThisUserAllowedToTypeCommandsReturnTrueIfTheyCanReturnFalseIfTheyCannot(permissionLevel, data, platform))
+			return;
 
-  function step(t){
-    const k = Math.min((t - t0)/duration, 1);
-    const v = start + (newValue - start)*k;
+		const parameters = message.split(' ');
+		switch (parameters[1]) {
+			case "on":
+				StartVibeMeter();
+				break;
+			case "off":
+				EndVibeMeter();
+				break;
+			default:
+				// Check if the parameter is a number
+				if (Number.isInteger(Number(parameters[1])))
+					StartVibeMeter(parseInt(parameters[1]));
+				break;
+		}
+	}
 
-    label.textContent = Number.isInteger(v)?String(v):v.toFixed(decimalPlaces);
+	// Check if the input is valid
+	if (!isNumeric(message))
+		return;
 
-    const clamped = Math.min(Math.max(v, minRating), maxRating);
-    const range = maxRating - minRating;
-    const p = range===0 ? 1 : (clamped - minRating)/range;
+	const rating = Number(message);
 
-    const red = Math.round(255*(1-p));
-    const green = Math.round(255*p);
-    const color = `rgba(${red},${green},0,1)`;
-    box.style.backgroundColor = color;
-    ratingBoxBackground.style.backgroundColor = color;
+	if (rating < minRating || rating > maxRating)
+		return;
 
-    if (k<1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
+	// TODO:
+	// (1) Check ratingsMap
+	// (2) If platform-username is in map, return 
+
+	// Store the rating into map
+	ratingsMap.set(`${platform}-${userID}`, rating);
+	console.log(`${userID}: ${rating}`);
+
+	// Calculate average
+	try {
+		CalculateAverage();
+	}
+	catch (error) {
+		console.error(error);
+	}
 }
 
-function ShowWidget(){ ratingBoxWrapper.style.animation = `showWidget 0.5s ease-in-out forwards`; }
-function HideWidget(){ ratingBoxWrapper.style.animation = `hideWidget 0.5s ease-in-out forwards`; }
+function StartVibeMeter(duration) {
+	// If we are already accepting submissions, don't continue
+	if (isAcceptingSubmissions || isInFinalAnimation)
+		return;
+
+	isAcceptingSubmissions = true;
+	label.textContent = Number.isInteger(minRating) ? minRating.toString() : minRating.toFixed(decimalPlaces);
+	box.style.backgroundColor = `rgba(255, 0, 0, 1)`;
+
+	// Messages en français
+	client.sendMessage('twitch', `/me VIBE METER ! Entrez un nombre entre ${minRating} et ${maxRating}`, { bot: true });
+	client.sendMessage('youtube', `VIBE METER ! Entrez un nombre entre ${minRating} et ${maxRating}`, { bot: true });
+
+	// Reset all the scores
+	ratingsMap.clear();
+
+	ShowWidget();
+
+	// If no duration is provided, use the default duration
+	if (!duration)
+		if (duration != 0)
+			duration = defaultDuration;
+
+	console.log(duration);
+
+	loadingBar.style.transitionDuration = `${duration}s`;
+	loadingBar.style.height = 0;
+
+	if (duration > 0) {
+		// Set the countdown
+		setTimeout(() => {
+			EndVibeMeter();
+		}, duration * 1000);
+
+		// Compte à rebours sans son
+		let countdown = Math.min(5, duration);
+
+		setTimeout(() => {
+			let count = countdown;
+			const countdownInterval = setInterval(() => {
+				// tickSFX.play(); // Son désactivé
+				count--;
+				if (count <= 1) {
+					clearInterval(countdownInterval);
+					console.log("C'est parti !");
+				}
+			}, 1000);
+		}, (duration - countdown) * 1000);
+	}
+}
+
+function EndVibeMeter() {
+	if (!isAcceptingSubmissions) {
+		client.sendMessage('twitch', `/me Tapez "${chatCommand} on" pour lancer le Vibe Meter`, { bot: true });
+		client.sendMessage('youtube', `Tapez "${chatCommand} on" pour lancer le Vibe Meter`, { bot: true });
+		return;
+	}
+
+	// Stop taking submissions
+	isInFinalAnimation = true;
+	isAcceptingSubmissions = false;
+
+	// Son désactivé
+	// whooshSFX.play();
+
+	// Pulse animation
+	ratingBoxBackground.style.animation = 'pulse 1s linear 1s forwards';
+
+	// Calculate the final rating
+	const finalRating = CalculateAverage();
+
+	// Pas de vidéo, juste le message
+	setTimeout(() => {
+		// Message en français
+		client.sendMessage('twitch', `/me VERDICT VIBE METER : ${finalRating}/${maxRating}`, { bot: true });
+		client.sendMessage('youtube', `VERDICT VIBE METER : ${finalRating}/${maxRating}`, { bot: true });
+
+		console.log(`Note finale : ${finalRating}`);
+
+		// Vidéos désactivées - on passe directement à la fin
+		ratingBoxBackground.style.animation = '';
+		
+		// On cache le widget après 3 secondes
+		setTimeout(() => {
+			HideWidget();
+			setTimeout(() => {
+				loadingBar.style.transitionDuration = `0s`;
+				loadingBar.style.height = `100%`;
+				isInFinalAnimation = false;
+			}, 1000);
+		}, 3000);
+	}, 4000);
+}
+
+// Les événements vidéo ne sont plus nécessaires mais on les garde au cas où
+videoEl.addEventListener('play', () => {
+	console.debug('vidéo démarrée : ' + videoEl.src);
+	videoEl.style.opacity = 0.5;
+});
+
+videoEl.addEventListener('ended', () => {
+	console.debug('vidéo terminée : ' + videoEl.src);
+
+	setTimeout(() => {
+		HideWidget();
+		setTimeout(() => {
+			loadingBar.style.transitionDuration = `0s`;
+			loadingBar.style.height = `100%`;
+		}, 1000);
+	}, 3000);
+});
+
+videoEl.addEventListener('timeupdate', () => {
+	console.debug('vidéo timeupdate : ' + videoEl.src);
+
+	// Start the fade out 1 second before the video ends
+	if (videoEl.duration - videoEl.currentTime <= 1)
+		videoEl.style.opacity = 0;
+
+	setTimeout(() => {
+		isInFinalAnimation = false;
+	}, 1000);
+});
+
+
+
+
+//////////////////////
+// HELPER FUNCTIONS //
+//////////////////////
+
+function CalculateAverage() {
+
+	// Literally 4th grade mathematics
+	let sum = 0;
+	let count = 0;
+	for (const [key, value] of ratingsMap) {
+		sum += value;
+		count++;
+	}
+
+	const average = count > 0 ? sum / count : 0;
+	console.debug(`Note actuelle : ${average}`);
+
+	// Update the label
+	UpdateRatingBox(average);
+
+	return average;
+}
+
+function IsThisUserAllowedToTypeCommandsReturnTrueIfTheyCanReturnFalseIfTheyCannot(targetPermissions, data, platform) {
+	return GetPermissionLevel(data, platform) >= targetPermissions;
+}
+
+function GetPermissionLevel(data, platform) {
+	switch (platform) {
+		case 'twitch':
+			if (data.message.role >= 4)
+				return 40;
+			else if (data.message.role >= 3)
+				return 30;
+			else if (data.message.role >= 2)
+				return 20;
+			else if (data.message.role >= 2 || data.message.subscriber)
+				return 15;
+			else
+				return 10;
+		case 'youtube':
+			if (data.user.isOwner)
+				return 40;
+			else if (data.user.isModerator)
+				return 30;
+			else if (data.user.isSponsor)
+				return 15;
+			else
+				return 10;
+	}
+}
+
+function isNumeric(str) {
+	return /^-?\d+(\.\d+)?$/.test(str);
+}
+
+function UpdateRatingBox(newValue, duration = 200) {
+	const start = parseFloat(label.textContent) || minRating;
+	const startTime = performance.now();
+
+	function update(currentTime) {
+		const elapsed = currentTime - startTime;
+		const progress = Math.min(elapsed / duration, 1);
+		const value = start + (newValue - start) * progress;
+
+		// Update label with 1 decimal place
+		label.textContent = Number.isInteger(value) ? value.toString() : value.toFixed(decimalPlaces);
+
+		// Normalize value within the min-max range
+		const clampedValue = Math.min(Math.max(value, minRating), maxRating);
+		const range = maxRating - minRating;
+		const percent = range === 0 ? 1 : (clampedValue - minRating) / range;
+
+		// Interpolate red to green
+		const red = Math.round(255 * (1 - percent));
+		const green = Math.round(255 * percent);
+		box.style.backgroundColor = `rgba(${red}, ${green}, 0, 1)`;
+		ratingBoxBackground.style.backgroundColor = `rgba(${red}, ${green}, 0, 1)`;
+
+		if (progress < 1) {
+			requestAnimationFrame(update);
+		}
+	}
+
+	requestAnimationFrame(update);
+}
+
+function ShowWidget() {
+	ratingBoxWrapper.style.animation = `showWidget 0.5s ease-in-out forwards`;
+}
+
+function HideWidget() {
+	ratingBoxWrapper.style.animation = `hideWidget 0.5s ease-in-out forwards`;
+}
+
+
 
 ///////////////////////////////////
-// STATUT CONNEXION (étiquette) //
+// STREAMER.BOT WEBSOCKET STATUS //
 ///////////////////////////////////
-function SetConnectionStatus(connected, hint=""){
-  const el = document.getElementById("statusContainer");
-  if (connected){
-    el.style.background = "#2FB774";
-    el.innerText = "Connecté !";
-    el.style.opacity = 1;
-    setTimeout(()=>{ el.style.transition = "all 2s ease"; el.style.opacity = 0; }, 10);
-  } else {
-    el.style.background = "#D12025";
-    el.innerText = "Connexion…" + (hint ? ` (${hint})` : "");
-    el.style.transition = "";
-    el.style.opacity = 1;
-  }
-}
 
-// GO
-connectStreamerBot();
+// This function sets the visibility of the Streamer.bot status label on the overlay
+function SetConnectionStatus(connected) {
+	let statusContainer = document.getElementById("statusContainer");
+	if (connected) {
+		statusContainer.style.background = "#2FB774";
+		statusContainer.innerText = "Connecté !";
+		statusContainer.style.opacity = 1;
+		setTimeout(() => {
+			statusContainer.style.transition = "all 2s ease";
+			statusContainer.style.opacity = 0;
+		}, 10);
+	}
+	else {
+		statusContainer.style.background = "#D12025";
+		statusContainer.innerText = "Connexion...";
+		statusContainer.style.transition = "";
+		statusContainer.style.opacity = 1;
+	}
+}
