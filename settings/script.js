@@ -1,8 +1,16 @@
-// Search paramaters
+// Helper functions
+function GetBooleanParam(paramName, defaultValue) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const value = urlParams.get(paramName);
+    if (value === null) return defaultValue;
+    return value.toLowerCase() === 'true';
+}
+
+// Search parameters
 const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString);
-const settingsJson = urlParams.get("settingsJson") || "";
-const widgetURL = urlParams.get("widgetURL") || "";
+const settingsJson = urlParams.get("settingsJson") || "settings.json";
+const widgetURL = urlParams.get("widgetURL") || window.location.origin + window.location.pathname.replace('/settings/', '');
 const showUnmuteIndicator = GetBooleanParam("showUnmuteIndicator", false);
 
 // Page elements
@@ -22,7 +30,7 @@ let settingsMap = new Map();
 
 // Construct local storage key prefix so that each widget has their own unique settings
 const parts = widgetURL.replace(/\/+$/, '').split('/');
-const keyPrefix = parts[parts.length - 1];
+const keyPrefix = parts[parts.length - 1] || 'vibemeter';
 
 // Set visibility of the unmute indicator
 if (showUnmuteIndicator)
@@ -92,14 +100,14 @@ function LoadJSON(settingsJson) {
 						case 'text':
 							inputElement = document.createElement('input');
 							inputElement.type = 'text';
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							inputElement.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
 							inputElement.autocomplete = 'new-password';
 							break;
 						case 'password':
 							inputElement = document.createElement('input');
 							inputElement.type = 'password';
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							inputElement.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
 							inputElement.autocomplete = 'new-password';
 							break;
@@ -117,7 +125,6 @@ function LoadJSON(settingsJson) {
 							slider.classList.add('round');
 							labelDiv.appendChild(slider);
 
-							// Add event listener to the switchDiv
 							labelDiv.addEventListener('click', () => {
 								checkBoxElement.checked = !checkBoxElement.checked;
 								UpdateSettingItemVisibility();
@@ -126,7 +133,7 @@ function LoadJSON(settingsJson) {
 							break;
 						case 'select':
 							inputElement = document.createElement('select');
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							setting.options.forEach(option => {
 								const optionElement = document.createElement('option');
 								optionElement.value = option.value;
@@ -141,13 +148,13 @@ function LoadJSON(settingsJson) {
 						case 'color':
 							inputElement = document.createElement('input');
 							inputElement.type = 'color';
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							inputElement.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
 							break;
 						case 'number':
 							inputElement = document.createElement('input');
 							inputElement.type = 'number';
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							inputElement.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
 							inputElement.min = setting.min;
 							inputElement.max = setting.max;
@@ -156,15 +163,15 @@ function LoadJSON(settingsJson) {
 						case 'sb-actions':
 							inputElement = document.createElement('input');
 							inputElement.type = 'text';
-							inputElement.placeholder = 'Type to search...';
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.placeholder = 'Tapez pour rechercher...';
+							inputElement.id = setting.id;
 							inputElement.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
 							inputElement.setAttribute('list', 'streamer-bot-actions');
 							inputElement.autocomplete = 'off';
 							break;
 						case 'button':
 							inputElement = document.createElement('button');
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							inputElement.textContent = setting.label;
 
 							inputElement.addEventListener('click', () => {
@@ -187,7 +194,7 @@ function LoadJSON(settingsJson) {
 						default:
 							inputElement = document.createElement('input');
 							inputElement.type = 'text';
-							inputElement.id = setting.id; //Added setting ID
+							inputElement.id = setting.id;
 							inputElement.value = settingsMap.has(setting.id) ? settingsMap.get(setting.id) : setting.defaultValue;
 					}
 
@@ -239,7 +246,6 @@ function LoadJSON(settingsJson) {
 								break;
 							}
 
-							// Find the parent setting object (to keep walking up)
 							currentSetting = data.settings.find(s => s.id === currentSetting.showIf) || {};
 						}
 
@@ -252,7 +258,7 @@ function LoadJSON(settingsJson) {
 			RefreshWidgetPreview();
 			SaveSettingsToStorage();
 		})
-		.catch(error => console.error('Error loading settings:', error));
+		.catch(error => console.error('Erreur lors du chargement des paramètres:', error));
 }
 
 function SaveSettingsToStorage() {
@@ -263,7 +269,6 @@ function SaveSettingsToStorage() {
 }
 
 function LoadSettingsFromStorage() {
-	// Retrieve session rankings from local storage
 	const settingsMapString = localStorage.getItem(`${keyPrefix}-settings`);
 	if (settingsMapString) {
 		const settingsMapArray = JSON.parse(settingsMapString);
@@ -283,7 +288,7 @@ function LoadDefaultSettings() {
 function RefreshWidgetPreview() {
 	const settings = {};
 	settingsData.settings.forEach(setting => {
-		if (setting.type === 'button') return; // Skip buttons
+		if (setting.type === 'button') return;
 
 		let inputElement = document.getElementById(setting.id);
 		if (!inputElement) return;
@@ -295,12 +300,11 @@ function RefreshWidgetPreview() {
 		}
 	});
 
-	// Generate parameter string
 	const paramString = Object.entries(settings)
 		.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
 		.join('&');
 
-	console.debug('Parameter String:', paramString);
+	console.debug('Paramètres:', paramString);
 
 	widgetUrlInput.value = widgetURL + "?" + paramString;
 	widgetPreview.src = widgetUrlInput.value;
@@ -312,13 +316,14 @@ function UpdateStreamerBotConnection() {
 	let addressElement = document.getElementById('address');
 	let portElement = document.getElementById('port');
 
-	if (addressElement && portElement)
+	if (addressElement && portElement && client)
 		client.options.host = addressElement.value;
 
-	if (portElement)
+	if (portElement && client)
 		client.options.port = portElement.value;
 
-	client.connect();
+	if (client)
+		client.connect();
 }
 
 
@@ -327,41 +332,48 @@ function UpdateStreamerBotConnection() {
 // STREAMER.BOT //
 //////////////////
 
-// Connect to Streamer.bot and get list of actions
 let sbServerAddress = '127.0.0.1';
 let sbServerPort = '8080';
-let client = new StreamerbotClient({
-	host: sbServerAddress,
-	port: sbServerPort,
+let client = null;
 
-	onConnect: (data) => {
-		console.log(`Streamer.bot successfully connected to ${sbServerAddress}:${sbServerPort}`)
-		console.debug(data);
+// Initialiser le client uniquement si StreamerbotClient est disponible
+if (typeof StreamerbotClient !== 'undefined') {
+	client = new StreamerbotClient({
+		host: sbServerAddress,
+		port: sbServerPort,
 
-		// Get list of actions
-		GetSBActions();
-	},
+		onConnect: (data) => {
+			console.log(`Streamer.bot connecté avec succès à ${sbServerAddress}:${sbServerPort}`)
+			console.debug(data);
+			GetSBActions();
+		},
 
-	onDisconnect: () => {
-		console.error(`Streamer.bot disconnected from ${sbServerAddress}:${sbServerPort}`)
-	}
-});
+		onDisconnect: () => {
+			console.error(`Streamer.bot déconnecté de ${sbServerAddress}:${sbServerPort}`)
+		}
+	});
+}
 
 async function GetSBActions() {
-	const response = await client.getActions();
+	if (!client) return;
+	
+	try {
+		const response = await client.getActions();
+		console.debug(response);
 
-	console.debug(response);
+		const datalistElement = document.createElement('datalist');
+		datalistElement.id = 'streamer-bot-actions';
 
-	const datalistElement = document.createElement('datalist');
-	datalistElement.id = 'streamer-bot-actions';
+		for (const action of response.actions) {
+			const option = document.createElement('option');
+			option.value = action.name;
+			datalistElement.appendChild(option);
+		}
 
-	for (const action of response.actions) {
-		const option = document.createElement('option');
-		option.value = action.name;
-		datalistElement.appendChild(option);
+		document.body.appendChild(datalistElement);
+	} catch (error) {
+		console.error('Erreur lors de la récupération des actions:', error);
 	}
-
-	document.body.appendChild(datalistElement);
 }
 
 
@@ -371,66 +383,60 @@ async function GetSBActions() {
 /////////////////////////
 
 function CopyURLToClipboard() {
-	// Copy to clipboard
 	navigator.clipboard.writeText(widgetUrlInput.value);
 
-	// Create the "Copied!" message
 	const copiedMessage = document.createElement('span');
-	copiedMessage.textContent = 'Copied to clipboard!';
+	copiedMessage.textContent = 'Copié dans le presse-papier !';
 	copiedMessage.style.textAlign = 'center';
 	copiedMessage.style.fontWeight = 'absolute';
 	copiedMessage.style.position = 'absolute';
 	copiedMessage.style.top = '50%';
 	copiedMessage.style.left = '50%';
 	copiedMessage.style.transform = 'translate(-50%, -50%)';
-	copiedMessage.style.backgroundColor = '#00dd63'; // Green with some transparency
+	copiedMessage.style.backgroundColor = '#00dd63';
 	copiedMessage.style.color = 'white';
 	copiedMessage.style.padding = '5px 10px';
 	copiedMessage.style.borderRadius = '5px';
 	copiedMessage.style.fontWeight = '500';
-	copiedMessage.style.zIndex = '2'; // Ensure it's above the input and label
-	copiedMessage.style.opacity = '0'; // Start with opacity 0 for fade-in
+	copiedMessage.style.zIndex = '2';
+	copiedMessage.style.opacity = '0';
 	copiedMessage.style.transition = 'opacity 0.2s ease-in-out';
 
 	widgetUrlInputWrapper.appendChild(copiedMessage);
 
-	// Force a reflow to trigger the transition
 	void copiedMessage.offsetWidth;
 
-	// Fade in the message
 	copiedMessage.style.opacity = '1';
 
-	// Fade out and remove the message after 3 seconds
 	setTimeout(() => {
 		copiedMessage.style.opacity = '0';
 		setTimeout(() => {
 			widgetUrlInputWrapper.removeChild(copiedMessage);
-		}, 500); // Wait for the fade-out
+		}, 500);
 	}, 5000);
 }
 
 function CloseDefaultsPopup() {
 	loadDefaultsBox.style.visibility = 'hidden';
 	loadDefaultsBox.style.opacity = 0;
-};
+}
 
 function CloseSettings() {
 	loadSettingsBox.style.visibility = 'hidden';
 	loadSettingsBox.style.opacity = 0;
-};
+}
 
 function LoadSettings() {
 	const url = new URL(loadURLBox.value);
 
 	url.searchParams.forEach((value, key) => {
-
 		const inputElement = document.getElementById(key);
 		if (inputElement != null) {
 			if (inputElement.type == 'checkbox')
-				inputElement.checked = value.toLocaleLowerCase() == 'true';
+				inputElement.checked = value.toLowerCase() == 'true';
 			else
 				inputElement.value = value;
-			inputElement.dispatchEvent(new Event('input')); // Triggers the page refresh
+			inputElement.dispatchEvent(new Event('input'));
 		}
 	});
 
@@ -460,16 +466,13 @@ function OpenLoadSettingsPopup() {
 // HELPER FUNCTIONS //
 //////////////////////
 
-// Handle first window interaction
 window.addEventListener('message', (event) => {
 	if (event.origin === new URL(widgetPreview.src).origin && event.data === 'iframe-interacted') {
 		iframeHasBeenInteractedWith = true;
-		console.log('Iframe has been interacted with!');
+		console.log('Iframe a été interagi !');
 		unmuteLabel.style.display = 'none';
 	}
 });
-
-
 
 
 // Load settings from local storage
