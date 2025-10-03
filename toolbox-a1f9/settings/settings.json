@@ -1,0 +1,100 @@
+{
+  "settings": [
+    {
+      "id": "address",
+      "label": "Adresse IP",
+      "description": "",
+      "type": "text",
+      "defaultValue": "127.0.0.1",
+      "group": "Paramètres du serveur Websocket Streamer.bot"
+    },
+    {
+      "id": "port",
+      "label": "Port",
+      "description": "",
+      "type": "text",
+      "defaultValue": "8080",
+      "group": "Paramètres du serveur Websocket Streamer.bot"
+    },
+    {
+      "id": "password",
+      "label": "Mot de passe",
+      "description": "<span style=\"color:red; font-weight: 600;\">Un mot de passe websocket est requis pour le fonctionnement complet du widget</span>",
+      "type": "password",
+      "defaultValue": "",
+      "group": "Paramètres du serveur Websocket Streamer.bot"
+    },
+    {
+      "id": "chatCommand",
+      "label": "Commande de chat",
+      "description": "Paramètres : on, off, {durée}<br>Exemples : !vibemeter on, !vibemeter off, !vibemeter 5",
+      "type": "text",
+      "defaultValue": "!vibemeter",
+      "group": "Général"
+    },
+    {
+      "id": "permissionLevel",
+      "label": "Niveau de permission",
+      "description": "Ces utilisateurs peuvent démarrer/arrêter le Vibe Meter",
+      "type": "select",
+      "options": [
+        { "value": 40, "label": "Streamer" },
+        { "value": 30, "label": "Mods & Streamer" },
+        { "value": 20, "label": "VIP, Mods & Streamer" },
+        { "value": 15, "label": "Abonnés, VIP, Mods & Streamer" },
+        { "value": 10, "label": "Tout le monde" },
+        { "value": 69420, "label": "Personne" }
+      ],
+      "defaultValue": 30,
+      "group": "Général"
+    },
+    {
+      "id": "minRating",
+      "label": "Minimum",
+      "description": "Note la plus basse possible",
+      "type": "number",
+      "min": 1,
+      "max": 1000,
+      "defaultValue": 0,
+      "group": "Général"
+    },
+    {
+      "id": "maxRating",
+      "label": "Maximum",
+      "description": "Note la plus haute possible",
+      "type": "number",
+      "min": 1,
+      "max": 1000,
+      "defaultValue": 10,
+      "group": "Général"
+    },
+    {
+      "id": "defaultDuration",
+      "label": "Durée par défaut",
+      "description": "Le minuteur se termine après X secondes (0 pour désactiver)",
+      "type": "number",
+      "min": 0,
+      "defaultValue": 0,
+      "group": "Général"
+    },
+    {
+      "id": "decimalPlaces",
+      "label": "Décimales",
+      "description": "Nombre de décimales affichées",
+      "type": "number",
+      "min": 0,
+      "defaultValue": 1,
+      "group": "Apparence"
+    },
+    {
+      "id": "fontSize",
+      "label": "Taille de la police",
+      "description": "Taille du texte dans l’overlay (px)",
+      "type": "number",
+      "min": 1,
+      "max": 600,
+      "defaultValue": 150,
+      "group": "Apparence"
+    }
+  ]
+}
