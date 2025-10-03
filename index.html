@@ -1,33 +1,30 @@
 <!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <title>Vibe Meter</title>
-  <link rel="shortcut icon" href="#" />
-  <link rel="stylesheet" href="./style.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/metropolis.min.css" />
 
-  <!-- Streamer.bot client (ES build) avant ton script -->
-  <script src="https://unpkg.com/@streamerbot/client@1.12.2/dist/streamerbot-client.js"
-          crossorigin="anonymous"
-          onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@streamerbot/client@1.12.2/dist/streamerbot-client.js';document.head.appendChild(s);">
-  </script>
+<head>
+	<title>Vibe Meter</title>
+	<meta charset="UTF-8">
+	<link rel="shortcut icon" href="#" />
+	<link rel="stylesheet" href="./style.css" />
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xz/fonts@1/serve/metropolis.min.css" />
+	<script type="text/javascript" src="https://unpkg.com/@streamerbot/client/dist/streamerbot-client.js"></script>
 </head>
 
 <body>
-  <div id="statusContainer">Connexion…</div>
-  <div id="mainContainer">
-    <div id="ratingBoxWrapper">
-      <div id="ratingBoxBackground"></div>
-      <div id="ratingBox">
-        <label id="ratingLabel">0</label>
-        <div id="loadingBarWrapper">
-          <div id="loadingBar"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="./script.js"></script>
+	<div id="statusContainer">Connecting...</div>
+	<div id="mainContainer">
+		<div id="ratingBoxWrapper">
+			<div id="ratingBoxBackground">
+			</div>
+			<div id="ratingBox">
+				<label id="ratingLabel">0</label>
+				<video id="ratingVideo" autoplay type="video/mp4"></video>
+				<div id="loadingBarWrapper">
+					<div id="loadingBar"></div>
+				</div>
+			</div>
+		</div>
+	</div>
 </body>
-</html>
+
+<script src="../.common/utils/helpers.js"></script>
+<script src="./script.js"></script>
