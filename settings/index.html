@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Paramètres — Vibe Meter</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://unpkg.com/@streamerbot/client/dist/streamerbot-client.umd.js"></script>
+</head>
+<body>
+  <!-- Bandeau du haut -->
+  <div id="header">
+    <button id="membershipsButton" onclick="OpenMembershipPage()">Widgets exclusifs</button>
+
+    <div id="widgetUrlInputWrapper">
+      <span id="urlLabel">Cliquer pour copier l’URL</span>
+      <input id="widgetUrlInput" type="text" readonly onclick="CopyURLToClipboard()" />
+    </div>
+
+    <button onclick="OpenLoadDefaultsPopup()">Par défaut</button>
+    <button onclick="OpenLoadSettingsPopup()">Charger une URL</button>
+  </div>
+
+  <!-- Contenu principal -->
+  <div id="contentArea">
+    <div id="settingsPanel"></div>
+
+    <div id="widget-preview-wrapper">
+      <label id="unmute-label">Cliquez dans l’aperçu pour activer le son…</label>
+      <iframe id="widgetPreview"></iframe>
+    </div>
+  </div>
+
+  <!-- Popups -->
+  <div id="loadSettingsWrapper">
+    <div id="loadSettingsContainer">
+      <label>Collez une URL de widget existant :</label>
+      <input id="loadUrlBox" type="text" />
+      <div style="display:flex;gap:20px;margin-top:10px;">
+        <button onclick="CloseSettings()">Annuler</button>
+        <button style="background-color:var(--accent-color)" onclick="LoadSettings()">Charger</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadDefaultsWrapper">
+    <div id="loadDefaultsContainer">
+      <label>Réinitialiser aux valeurs par défaut ?</label>
+      <div style="display:flex;gap:20px;margin-top:10px;">
+        <button onclick="CloseDefaultsPopup()">Non</button>
+        <button style="background-color:var(--accent-color)" onclick="LoadDefaultSettings()">Oui</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
