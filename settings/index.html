@@ -1,59 +1,29 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Paramètres — Vibe Meter</title>
-  <link rel="stylesheet" href="./style.css"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../../.common/resources/logo.png" type="image/png">
+    <title>nutty</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            background: #181818;
+        }
+
+        #widgetContainer {
+            width: 100vw;
+            height: 100vh;
+            border-width: 0px;
+        }
+    </style>
 </head>
+
 <body>
-  <!-- Header -->
-  <div id="header">
-    <img src="../resources/logo.png" style="height: 40px;" />
-    <button id="membershipsButton" onclick="OpenMembershipPage()">Widgets exclusifs</button>
-
-    <div id="widgetUrlInputWrapper" style="flex: 1; position: relative;">
-      <span id="urlLabel">Cliquer pour copier l’URL</span>
-      <input id="widgetUrlInput" type="text" readonly onclick="CopyURLToClipboard()"/>
-    </div>
-
-    <button id="loadDefaultsButton" onclick="OpenLoadDefaultsPopup()">Par défaut</button>
-    <button id="loadSettingsButton" onclick="OpenLoadSettingsPopup()">Charger une URL</button>
-  </div>
-
-  <!-- Content -->
-  <div id="contentArea">
-    <div id="settingsPanel"></div>
-
-    <div id="widget-preview-wrapper">
-      <label id="unmute-label">Cliquer pour unmute…</label>
-      <iframe id="widgetPreview"></iframe>
-    </div>
-  </div>
-
-  <!-- Popup: Charger URL -->
-  <div id="loadSettingsWrapper">
-    <div id="loadSettingsContainer">
-      <label style="font-size: .8em;">Collez ici votre URL</label>
-      <input id="loadUrlBox" type="text" style="width: 100%;"/>
-      <div style="display:flex; gap:20px; margin-top:10px;">
-        <button id="cancelSettingsButton" onclick="CloseSettings()">Annuler</button>
-        <button style="background-color: var(--accent-color);" onclick="LoadSettings()">Charger</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Popup: Valeurs par défaut -->
-  <div id="loadDefaultsWrapper">
-    <div id="loadDefaultsContainer">
-      <label style="font-size: .8em;">Êtes-vous sûr ?</label>
-      <div style="display:flex; gap:20px; margin-top:10px;">
-        <button id="cancelDefaultsButton" onclick="CloseDefaultsPopup()">Non</button>
-        <button style="background-color: var(--accent-color);" onclick="LoadDefaultSettings()">Oui</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="./script.js"></script>
+    <iframe id="widgetContainer"></iframe>
+    <script src="script.js"></script>
 </body>
+
 </html>
